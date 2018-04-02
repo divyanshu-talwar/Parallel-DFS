@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+
+# Project-specific executables
+./sequential_dfs
