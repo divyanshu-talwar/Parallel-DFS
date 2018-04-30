@@ -237,58 +237,34 @@ __global__ void subgraph_size(bool* queue, bool* c, int* zeta, graph* dataset_gr
 	}
 }
 
-__global__ void pre_post_order(int* depth, int* zeta, int* zeta_tilde, graph* dataset_graph) {
-	int* pre = new int[dataset_graph->vertices];
-	int* post = new int[dataset_graph->vertices];
-
-	memset(pre, 0, dataset_graph->vertices * sizeof(int));
-	memset(post, 0, dataset_graph->vertices * sizeof(int));
-
+__global__ void pre_post_order(bool* queue, bool* p, int* pre, int* post, int* depth, int* zeta, int* zeta_tilde, graph* dataset_graph) {
 	bool* incoming_edges = new bool[dataset_graph->edges];
 	memset(incoming_edges, false, dataset_graph->edges * sizeof(bool));
 
-	bool* q = new bool[dataset_graph->vertices];
-	memcpy(q, dataset_graph->roots, sizeof(bool) * dataset_graph->vertices);
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if(queue[i] == true){
+		int pre_node = 	pre[i];
+		int post_node = post[i];
+		for(int j = dataset_graph->dataset->index_column[i]; dataset_graph->dataset->column[j] == i; j++) {
+			int neighbor_vertex = dataset_graph->dataset->row[j];
+			pre[neighbor_vertex] = pre_node + zeta_tilde[neighbor_vertex];
+			post[neighbor_vertex] = post_node + zeta_tilde[neighbor_vertex];
 
-	while(true) {
-		bool* p = new bool[dataset_graph->vertices];
-		memset(p, false, dataset_graph->vertices * sizeof(bool));
-		bool global_check = false;
-
-		for(int i = 0; i < dataset_graph->vertices; i++) {
-			if( q[i] ) {
-				int pre_node = 	pre[i];
-				int post_node = post[i];
-
-				for(int j = dataset_graph->dataset->index_column[i]; dataset_graph->dataset->column[j] == i; j++) {
-					int neighbor_vertex = dataset_graph->dataset->row[j];
-					// zeta[i] = undefined!
-					pre[neighbor_vertex] = pre_node + zeta_tilde[neighbor_vertex];
-					post[neighbor_vertex] = post_node + zeta_tilde[neighbor_vertex];
-
-					incoming_edges[j] = true;
-					bool flag = true;
-					for(int k = 0; k < dataset_graph->edges; k++) {
-						if( dataset_graph->dataset->row[k] == neighbor_vertex && !incoming_edges[k] ) {
-							flag = false;
-							break;
-						}
-					}
-					if( flag ) {
-						global_check = true;
-						p[neighbor_vertex] = true;
-					}
+			incoming_edges[j] = true;
+			bool flag = true;
+			for(int k = 0; k < dataset_graph->edges; k++) {
+				if( dataset_graph->dataset->row[k] == neighbor_vertex && !incoming_edges[k] ) {
+					flag = false;
+					break;
 				}
-				pre[i] = pre_node + depth[i];
-				post[i] = post_node + (zeta[i] - 1);
+			}
+			if( flag ) {
+				p[neighbor_vertex] = true;
 			}
 		}
-		q = p;
-		if( !global_check ) {
-			break;
-		}
+		pre[i] = pre_node + depth[i];
+		post[i] = post_node + (zeta[i] - 1);
 	}
-
 }
 
 __global__ void dag_to_dt(bool* queue, bool* p, int* depth, int* parent, char **global_path, graph* dataset_graph) {
@@ -405,16 +381,13 @@ int main() {
 		}
 		q = p;
 	}
-	// copy back to host what's required. (depth, parent and global_path)
+	// copy back to host what's required. (depth, parent and global_path). {not required since alreadly in the gpu memory} [check]
 
 	// Part 2 - subgraph size
-	// bool* q = new bool[dataset_graph->vertices];
 	bool* c = new bool[dataset_graph->vertices];
 	memcpy(q, dataset_graph->leaves, sizeof(bool) * dataset_graph->vertices);
 	
-	// bool* Q;
 	bool* C;
-	// cudaMalloc((void**)&Q, dataset_graph->vertices * sizeof(bool));
 	cudaMalloc((void**)&C, dataset_graph->vertices * sizeof(bool));
 
 	while(true) {
@@ -433,7 +406,6 @@ int main() {
 		calculate_exclusive_prefix_sum<<<grid, block>>>(C, zeta_gpu, zeta_tilde_gpu, dataset_graph);
 
 		cudaMemcpy(c, C, sizeof(bool) * dataset_graph->vertices, cudaMemcpyDeviceToHost);
-		// copy back zeta_tilde, zeta (check - if required), zeta_tilde 
 
 		for(int i = 0; i <= dataset_graph->vertices; i++){
 			if(c[i]){
@@ -446,7 +418,46 @@ int main() {
 		}
 		q = c;
 	}
+	// copy back zeta_tilde, zeta , zeta_tilde. {not required since alreadly in the gpu memory} [check]
+
 	// Part 3 - pre_post_order
+	int* pre = new int[dataset_graph->vertices];
+	int* post = new int[dataset_graph->vertices];
+
+	memcpy(q, dataset_graph->roots, sizeof(bool) * dataset_graph->vertices);
+
+	int* pre_gpu;
+	int* post_gpu;
+
+	cudaMalloc((void**)&pre_gpu, dataset_graph->vertices * sizeof(int));
+	cudaMalloc((void**)&post_gpu, dataset_graph->vertices * sizeof(int));
+	cudaMemset(pre_gpu, 0, dataset_graph->vertices * sizeof(int));
+	cudaMemset(post_gpu, 0, dataset_graph->vertices * sizeof(int));
+
+	while(true) {
+		cudaMemcpy(Q, q, dataset_graph->vertices * sizeof(bool), cudaMemcpyHostToDevice);
+		cudaMemset(P, false, dataset_graph->vertices * sizeof(bool));
+		bool global_check = false;
+
+		dim3 grid, block;
+		block.x = BLOCK_SIZE;	
+		grid.x = dataset_graph->vertices/ block.x;
+		pre_post_order<<<grid, block>>>(Q, P, pre_gpu, post_gpu, depth_gpu, zeta_gpu, zeta_tilde_gpu, dataset_graph);
+		cudaMemcpy(p, P, sizeof(bool) * dataset_graph->vertices, cudaMemcpyDeviceToHost);
+
+		for(int i = 0; i <= dataset_graph->vertices; i++){
+			if(p[i]){
+				global_check = true;
+				break;
+			}
+		}
+		if( !global_check ) {
+			break;
+		}
+		q = p;
+	}
+	// PARALLEL ALGORITHM ENDS HERE.
+	// copy back to host what's required here. (parent, pre_gpu and post_gpu)
 
 	return 0;
 }
