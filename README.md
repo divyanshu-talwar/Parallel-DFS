@@ -1,1 +1,1 @@
-# Parallel-DFS
+![Parallel-DFS](./poster.jpg).

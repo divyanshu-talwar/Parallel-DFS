@@ -295,24 +295,15 @@ __global__ void pre_post_order(bool* queue, bool* p, int* pre, int* post, int* d
 }
 
 __global__ void dag_to_dt(bool* queue, bool* p, int* depth, int* parent, char **global_path, graph* dataset_graph, int* data, int* row, int* column, int* index_column, int* index_row_start, int* index_row_end, int vertices, int edges) {
-	// printf("YOho\n");
 	bool* incoming_edges = new bool[edges];
 	memset(incoming_edges, false, edges * sizeof(bool));
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	// printf("i_old = %d\n", i);
-	// printf("vertices = %d\n", vertices);
 	if( i > vertices) {
 		return;
 	}
-	// printf("i_new = %d\n", i);
-	// printf("queue[%d] = %d\n",i, queue[i]);
-
-	// printf("aifbiwdfiwfiw   ----%d\n",queue[1] );
 	if( queue[i] ) {
-		// printf("%d\n", i);
 		for(int j = index_column[i]; column[j] == i; j++) {
 			int neighbor_vertex = row[j];
-			// printf("neighbor_vertex = %d\n", neighbor_vertex);
 			char* old_copy = new char[1000];
 			old_copy = my_strcpy(old_copy, global_path[i]);
 			
@@ -321,15 +312,10 @@ __global__ void dag_to_dt(bool* queue, bool* p, int* depth, int* parent, char **
 			char* buffer = new char[1000];
 			buffer = my_itoa(neighbor_vertex, buffer);
 			char* new_path = my_strcat(old_copy, buffer);
-
-			// printf("%s - %s\n", old_path, new_path);
-			// printf("%d\n", my_strcmp(old_path, new_path));
 			
 			if( my_strcmp(old_path, new_path) == 2 ) {
-				// printf("hi\n");		
 				global_path[i] = my_strcpy(global_path[i], new_path);
 				parent[neighbor_vertex] = i;
-				// printf("%d\n", parent[neighbor_vertex]);
 				depth[i] += 1;
 			}
 
@@ -342,7 +328,6 @@ __global__ void dag_to_dt(bool* queue, bool* p, int* depth, int* parent, char **
 				}
 			}
 			if( flag ) {
-				// printf("Whyyyyy??????????\n");
 				p[neighbor_vertex] = true;
 			}
 		}
@@ -360,8 +345,6 @@ int main() {
 	tuple* return_value = read_data(filename);
 	graph* dataset_graph = return_value->dataset_graph;
 
-	// printf("%d\n", dataset_graph->vertices);
-	// exit(0);
 	compressed_sparse_column *dataset = return_value->dataset;
 	printf("Generated the csc matrix!\n");
 
@@ -402,43 +385,32 @@ int main() {
 	cudaMalloc((void**)&dataset_graph_gpu, sizeof(dataset_graph));
 	
 	cudaMalloc((void**)&roots_gpu, dataset_graph->vertices * sizeof(bool));
-	// cudaMemcpy(&dataset_graph_gpu->roots, &roots_gpu, sizeof(bool*), cudaMemcpyHostToDevice);
 	cudaMemcpy(roots_gpu, dataset_graph->roots, dataset_graph->vertices * sizeof(bool), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&leaves_gpu, dataset_graph->vertices * sizeof(bool));
-	// cudaMemcpy(&dataset_graph_gpu->leaves, &leaves_gpu, sizeof(bool*), cudaMemcpyHostToDevice);
 	cudaMemcpy(leaves_gpu, dataset_graph->leaves, dataset_graph->vertices * sizeof(bool), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&singletons_gpu, dataset_graph->vertices * sizeof(bool));
-	// cudaMemcpy(&dataset_graph_gpu->singletons, &singletons_gpu, sizeof(bool*), cudaMemcpyHostToDevice);
 	cudaMemcpy(singletons_gpu, dataset_graph->singletons, dataset_graph->vertices * sizeof(bool), cudaMemcpyHostToDevice);
 	
 	cudaMalloc((void**)&dataset_gpu, sizeof(compressed_sparse_column*));
-	// cudaMemcpy(&dataset_graph_gpu->dataset, &dataset_gpu, sizeof(compressed_sparse_column*), cudaMemcpyHostToDevice);
-	// cudaMemcpy(&dataset_gpu, dataset_graph->dataset, sizeof(compressed_sparse_column*), cudaMemcpyHostToDevice);
-
 	cudaMalloc((void**)&data_gpu, dataset_graph->edges * sizeof(int));
 	cudaMemcpy(&dataset_gpu->data, &data_gpu, sizeof(int*), cudaMemcpyHostToDevice);
 	cudaMemcpy(data_gpu, dataset->data, dataset_graph->edges * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&row_gpu, dataset_graph->edges * sizeof(int));
-	// cudaMemcpy(&dataset_gpu->row, &row_gpu, sizeof(int*), cudaMemcpyHostToDevice);
 	cudaMemcpy(row_gpu, dataset->row, dataset_graph->edges * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&column_gpu, dataset_graph->edges * sizeof(int));
-	// cudaMemcpy(&dataset_gpu->column, &column_gpu, sizeof(int*), cudaMemcpyHostToDevice);
 	cudaMemcpy(column_gpu, dataset->column, dataset_graph->edges * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&index_column_gpu, dataset_graph->vertices * sizeof(int));
-	// cudaMemcpy(&dataset_gpu->index_column, &index_column_gpu, sizeof(int*), cudaMemcpyHostToDevice);
 	cudaMemcpy(index_column_gpu, dataset->index_column, dataset_graph->vertices * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&index_row_start_gpu, dataset_graph->vertices * sizeof(int));
-	// cudaMemcpy(&dataset_gpu->index_row_start, &index_row_start_gpu, sizeof(int*), cudaMemcpyHostToDevice);
 	cudaMemcpy(index_row_start_gpu, dataset->index_row_start, dataset_graph->vertices * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&index_row_end_gpu, dataset_graph->vertices * sizeof(int));
-	// cudaMemcpy(&dataset_gpu->index_row_end, &index_row_end_gpu, sizeof(int*), cudaMemcpyHostToDevice);
 	cudaMemcpy(index_row_end_gpu, dataset->index_row_end, dataset_graph->vertices * sizeof(int), cudaMemcpyHostToDevice);
 
 	cudaMalloc((void**)&depth_gpu, dataset_graph->vertices * sizeof(int));
@@ -479,16 +451,12 @@ int main() {
 		if( !grid.x ) {
 			grid.x = 1;
 		}
-		// printf("%d\n", count);
 		dag_to_dt<<<grid, block>>>(Q, P, depth_gpu, parent_gpu, global_path, dataset_graph_gpu, data_gpu, row_gpu, column_gpu, index_column_gpu, index_row_start_gpu, index_row_end_gpu, dataset_graph->vertices, dataset_graph->edges);
-		// printf("here again\n");
 		cudaDeviceSynchronize();
 		cudaMemcpy(p, P, sizeof(bool) * dataset_graph->vertices, cudaMemcpyDeviceToHost);
 		for(int i = 0; i < dataset_graph->vertices; i++) {
-			// printf("p[%d] = %d\n",i, p[i]);
 			if( p[i] ) {
 				global_check = true;
-				// printf("here\n");
 				break;
 			}
 		}
@@ -499,7 +467,6 @@ int main() {
 		q = p;
 	}
 	cudaMemcpy(parent, parent_gpu, dataset_graph->vertices * sizeof(int), cudaMemcpyDeviceToHost);
-	// printf("Done part one!!\n");
 	// copy back to host what's required. (depth, parent and global_path). {not required since alreadly in the gpu memory} [check]
 
 	// Part 2 - subgraph size
@@ -520,16 +487,9 @@ int main() {
 		if( !grid.x ) {
 			grid.x = 1;
 		}
-		// printf("YEah\n");
 		subgraph_size<<<grid, block>>>(Q, C, zeta_gpu, dataset_graph_gpu, data_gpu, row_gpu, column_gpu, index_column_gpu, index_row_start_gpu, index_row_end_gpu, dataset_graph->vertices, dataset_graph->edges);
 		cudaDeviceSynchronize();
 		cudaMemcpy(c, C, sizeof(bool) * dataset_graph->vertices, cudaMemcpyDeviceToHost);
-		// since kernel calls are asynchronous and I need to calculate zeta_gpu before launching the following kernel.
-		// for(int i = 0; i < dataset_graph->vertices; i++ ) {
-		// 	printf("c[%d] = %d\n", i, c[i]);
-		// }
-		// printf("-------------------------------------------\n");
-		// exit(0);
 
 		calculate_exclusive_prefix_sum<<<grid, block>>>(C, zeta_gpu, zeta_tilde_gpu, dataset_graph_gpu, data_gpu, row_gpu, column_gpu, index_column_gpu, index_row_start_gpu, index_row_end_gpu, dataset_graph->vertices, dataset_graph->edges);
 		cudaDeviceSynchronize();
@@ -614,7 +574,5 @@ int main() {
 		printf("Finish of %d - %d\n", i, post[i]);
 	}
 	// PARALLEL ALGORITHM ENDS HERE.
-	// copy back to host what's required here. (parent, pre_gpu and post_gpu)
-
 	return 0;
 }

@@ -353,9 +353,9 @@ __global__ void dag_to_dt(int* depth, int* parent, char **global_path, graph* da
 }
 
 __global__ void final_kernel(int* depth, int* zeta, int* zeta_tilde, int* parent, char **global_path, graph* dataset_graph) {
-	// dag_to_dt(depth, parent, global_path, dataset_graph);
-	// subgraph_size(zeta, zeta_tilde, dataset_graph);
-	// pre_post_order(depth, zeta, zeta_tilde, dataset_graph);
+	dag_to_dt(depth, parent, global_path, dataset_graph);
+	subgraph_size(zeta, zeta_tilde, dataset_graph);
+	pre_post_order(depth, zeta, zeta_tilde, dataset_graph);
 }
 
 
